@@ -1,4 +1,13 @@
-### 广播模式消费消息
+---
+title: RocketMQ 广播模式消费
+date: 2017-05-08 16:20:03
+categories:
+- rocketmq
+tags:
+- rocketmq
+- 分布式
+---
+
 ####广播消息简介
 广播消息表示的是生产者发送消息后，同一个group的消费者申明自己是广播模式来消费消息，这个group的所有消费者都将收到发送的每一条消息而不是自己订阅的局部队列queue。
 ![ggg](images/broadcast.png)

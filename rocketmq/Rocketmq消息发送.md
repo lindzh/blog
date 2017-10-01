@@ -1,4 +1,13 @@
-###消息发送解析
+---
+title: RocketMQ消息发送解析
+date: 2017-05-08 16:20:03
+categories:
+- rocketmq
+tags:
+- rocketmq
+- 分布式
+---
+
 Rocketmq的消息发送涉及三个角色，nameserver，broker和producer。nameserver：保存topic queue路由信息，broker：存储topic的queue消息，producer：也无妨发送消息client。发送消息的过程如下：
 
 1. client从nameserver获取topic queue路由列表信息

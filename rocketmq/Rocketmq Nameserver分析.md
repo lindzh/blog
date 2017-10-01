@@ -1,4 +1,13 @@
-### Rocketmq Nameserver分析
+---
+title: RocketMQ Nameserver分析
+date: 2017-06-08 16:20:03
+categories:
+- rocketmq
+tags:
+- rocketmq
+- 分布式
+---
+
 ##### 一、KV存储
 存储数据结构如下，namespace下存储key，value（KVConfigManager.java）
 

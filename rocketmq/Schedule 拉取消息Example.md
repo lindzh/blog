@@ -1,4 +1,12 @@
-## 定时拉取消费 Example
+---
+title: RocketMQ 定时拉取消费
+date: 2017-06-17 16:20:03
+categories:
+- rocketmq
+tags:
+- rocketmq
+- 分布式
+---
 
 ### 定时拉取介绍
 如果你采用`DefaultMQPullConsumer` 来消费消息的话，消费消息的queue需要获取，并且消费消息的queue的位点需要业务自己保存，当然也可以利用mq提供的api保存到broker中，另外什么时候来拉取queue中的消息完全由业务自己决定。定时拉取消息的Schedule完全解决了这个问题，业务要处理的就是消费消息，而不用担心位点同步，另外拉取了消息之后什么时候再拉取消息消费完全由业务控制。
