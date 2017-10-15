@@ -23,6 +23,7 @@ namespce如`NAMESPACE_ORDER_TOPIC_CONFIG`用来存储Topic的queue顺序定义
 
 ##### 二、Broker注册
 Broker启动会注册到nameserver
+
 ![](http://lindzh.oss-cn-hangzhou.aliyuncs.com/blog/nameserver.png)
 
 ```java

@@ -13,6 +13,7 @@ Rocketmq的消息发送涉及三个角色，nameserver，broker和producer。nam
 1. client从nameserver获取topic queue路由列表信息
 2. client选择发送的queue
 3. client发送消息到queue（Broker中）
+
 ![](http://lindzh.oss-cn-hangzhou.aliyuncs.com/blog/msg_send.png)
 
 #### client获取topic路由信息

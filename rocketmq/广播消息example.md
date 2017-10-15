@@ -10,6 +10,7 @@ tags:
 
 ####广播消息简介
 广播消息表示的是生产者发送消息后，同一个group的消费者申明自己是广播模式来消费消息，这个group的所有消费者都将收到发送的每一条消息而不是自己订阅的局部队列queue。
+
 ![ggg](http://lindzh.oss-cn-hangzhou.aliyuncs.com/blog/broadcast.png)
 
 * 发送消息和之前的方式一样
