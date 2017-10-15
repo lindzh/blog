@@ -6,6 +6,7 @@ categories:
 tags:
 - rocketmq
 - 分布式
+- 消息中间件
 ---
 
 topic的创建有两种方式，一种方式是开启client创建模式，另一种是使用mqadmin命令行创建topic，这两种方式中无论是哪种方式，都需要指定broker或者cluster创建，如果是指定broker创建，则该topic只在指定的broker列表上存在，如果指定cluster则在该cluster下的多个broker上都存在。
@@ -32,11 +33,11 @@ TopicConfig topicConfig = new TopicConfig();
 topicConfig.setReadQueueNums(8);
 topicConfig.setWriteQueueNums(8);
 ```
-集群模式中每个broker中的readqueue和writequeue数量都一样，单个broker指定只有该broker中有这个topic。
+集群模式中每个broker中的readqueue和writequeue数量都一样，单个broker指定只有该broker中有这个topic。queue总数的确定方式是该topic在多少个master Broker上就用broker数量x8
 
 perm参数：
 
-order参数：表示顺序，如果有顺序，例如局部顺序，全局有序，则需要指定order为true，默认无序。order有序会在nameserver的KV中保存topic的queue在broker列表的顺序
+order参数：表示顺序，如果有顺序，例如局部顺序，全局有序，则需要指定order为true，默认无序。order有序会在nameserver的KV中保存topic的queue在broker列表的顺序即order conf
 
 topicSysFlag参数：表示是否是unit或者centersync，如下：
 

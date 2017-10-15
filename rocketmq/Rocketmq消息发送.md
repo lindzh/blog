@@ -6,20 +6,28 @@ categories:
 tags:
 - rocketmq
 - 分布式
+- 消息中间件
 ---
-
-Rocketmq的消息发送涉及三个角色，nameserver，broker和producer。nameserver：保存topic queue路由信息，broker：存储topic的queue消息，producer：也无妨发送消息client。发送消息的过程如下：
-
-1. client从nameserver获取topic queue路由列表信息
-2. client选择发送的queue
-3. client发送消息到queue（Broker中）
 
 ![](http://lindzh.oss-cn-hangzhou.aliyuncs.com/blog/msg_send.png)
 
-#### client获取topic路由信息
-client发送消息的时候会从本地的cache中拿topic的路由信息，如果路由信息没在本地，client会从nameserver获取路由信息，获取的请求和返回如下，获取完毕后，该topic的路由信息会保存在本地。
+#### RocketMQ消息发送涉及到的角色与过程
 
-先从本地缓存获取，获取不到再从nameserver获取，并加入本地cache
+RocketMQ的消息发送涉及三个角色，NameServer，Broker和Producer：
+1. NameServer：保存topic queue路由信息，并提供topic 路由信息api供Client获取。
+2. broker：提供消息发送api，并将接收到的消息存储到该topic相应的Queue上。
+3. producer：消息发送client。
+
+发送消息的过程如下：
+
+1. client从nameserver获取topic queue路由信息。
+2. client根据路由信息生成该topic所有queue列表。
+3. client从该topic的queue列表中随机选择一个queue，并将消息发送到Queue上，Queue中有具体Broker的信息和queueid，发送时将消息发送到该Broker并带上queueid即可。
+
+
+
+#### client获取topic路由信息
+client发送消息的时候会从本地的cache中拿topic的路由信息，如果路由信息没在本地，client会从NameServer获取路由信息，代码如下：
 
 ```java
 TopicPublishInfo topicPublishInfo = this.topicPublishInfoTable.get(topic);
@@ -29,8 +37,9 @@ if (null == topicPublishInfo || !topicPublishInfo.ok()) {
     topicPublishInfo = this.topicPublishInfoTable.get(topic);
 }
 ```
+获取完毕后，该topic的路由信息会保存在本地。
 
-从nameserver获取路由信息
+#### 从nameserver获取路由信息
 
 ```java
 topicRouteData = this.mQClientAPIImpl.getTopicRouteInfoFromNameServer(topic, 1000 * 3);
@@ -66,7 +75,7 @@ log.info("topicRouteTable.put TopicRouteData[{}]", cloneTopicRouteData);
 this.topicRouteTable.put(topic, cloneTopicRouteData);
 
 ```
-路由信息格式
+##### 路由信息格式
 
 ```java
 private String orderTopicConf;
@@ -96,6 +105,7 @@ brokername:writequeueNumbers;brokername:writequeueNumbers
 #### client 选择queue
 
 ##### 路由信息与orderconf转换为queue列表
+一般Topic为无序Topic，无序Topic是没有order conf的，拿到的理由信息是有该topic且角色为Master的Broker列表，这里的order conf为局部有序Topic才会有，局部有序Topic的应用场景如同一个订单的消息需要发送到同一个queue中来保证消息先发先消费的顺序性，如果后发送的消息先到了会给业务造成异常（如订单付款和订单取消）。关于创建顺序topic 请参考mqadmin 创建topic的帮助。
 
 ```java
 //优先根据order topic conf
@@ -159,7 +169,7 @@ public MessageQueue selectOneMessageQueue() {
 无序消息的一般选择queue如上所示，都是采用模的办法，但是rocketmq有部分的优化，避免单个broker的热点问题。具体可以阅读相关代码。
 
 ##### 顺序消息 选择topic
-可以自己选择一个queue传入send方法，或者实现MessageQueueSelector的方式选择queue。常见该需求场景：局部要求顺序，如订单支付，订单发货等。
+对于顺序Topic的场景下，需要用户自己选择想要发送的queue来保证发送的顺序性，Producer也提供了api，如将queue传入send方法，选择send包含MessageQueueSelector的api来选择需要发送的queue。顺序Topic的需求场景：局部要求顺序，如订单支付，订单发货等。
 
 ```java
 public interface MessageQueueSelector {
@@ -168,8 +178,7 @@ public interface MessageQueueSelector {
 ```
 
 
-#### client发送消息到queue
-rocketmq提供的api
+#### Producer提供的发送api
 
 ```java
 //简单无序发送
@@ -190,7 +199,10 @@ SendResult send(final Message msg, final MessageQueue mq) throws MQClientExcepti
 其他异步，指定超时时间支持，请参考client提供的api
 
 #### 应对broker宕机
-如果broker宕机，client能较快感知到broker宕机的是发送到该broker的消息会失败。如果没有消息发送，则需要通过nameserver的自动清理broker的心跳更新定时任务更新topic路由信息，client定时任务拉取到才能感知到。时间预测：nameserver清理broker时间2分钟执行一次，client定时拉取时间默认30s，可配置，所以一般需要接近3分钟client才能感知到。
+如果broker宕机，client能较快感知到broker宕机的是发送到该broker的消息会失败。如果没有消息发送，则需要通过nameserver的自动清理broker的心跳更新定时任务更新topic路由信息，client定时任务拉取到才能感知到。时间预测：nameserver清理broker时间2分钟执行一次，client定时拉取时间默认30s，可配置，所以最多需要2分30秒client才能感知到。Broker 99.5%的可用性，很少会发生宕机，如果发送宕机，磁盘没有损坏的情况下不会有消息丢失。
+
+##### 处理消息发送失败
+对于Broker宕机，发送到该Broker的消息会发送失败，默认情况下，producer的client在发送消息的时候发现Broker异常了，会将该Broker标记为异常一段时间（即随机退避），并尝试重新发送消息（重新选择Broker，选择queue发送）。对于无序的Topic，client的重试次数是3次，一般Broker宕机对消息发送无影响，发送到该Broker失败了会发送到别的Broker。对于有序Topic，指定了queue，相当于指定了Broker，此时消息发送会失败，需要业务处理（处理方式如存DB，存本地文件系统等）。
 
 无序消息应对宕机:如果设置了重试次数，消息会重新发送到其他broker。默认重试次数：3
 
@@ -199,5 +211,5 @@ broker加入到集群或者在broker上面创建了topic，broker会同步该bro
 
 
 #### 应对nameserver宕机
-client和nameserver的交互只有获取topic的路由信息，一般nameserver有多台提供服务，获取这些信息是从中选择其中一台。broker和nameserver的交互是同步topic的信息（心跳），如果所有的nameserver都当机了才会对系统产生影响。如果所有的nameserver都当机了，新的broker无法加入，因为新的broker加入集群的通知机制是client从nameserver定时拉取。老的client还是可以发送消息到broker。
+client和nameserver的交互只有获取topic的路由信息，一般nameserver有多台提供服务，获取这些信息是从中选择其中一台。broker和nameserver的交互是同步topic的信息（心跳），如果所有的nameserver都宕机了才会对系统产生影响，此时的影响是系统无法扩容，不能创建Topic，不能进行系统运维，已经启动的消息发送与消费无影响，不能启动新的。
 

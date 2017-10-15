@@ -1,28 +1,30 @@
 ---
-title: RocketMQ Nameserver分析
+title: RocketMQ之NameServer
 date: 2017-06-08 16:20:03
 categories:
 - rocketmq
 tags:
 - rocketmq
 - 分布式
+- nameserver
 ---
 
-##### 一、KV存储
-存储数据结构如下，namespace下存储key，value（KVConfigManager.java）
+#### Nameserver在RocketMQ中的作用
+NameServer作为RocketMQ的注册中心，承担着Topic路由，Broker发现，其他配置信息保存等核心作用，RocketMQ 2.0版本使用了Zookeeper作为其注册中心，后来更换为自己写的TCP注册中心来解决在上千个Broker实例下Zookeeper通知和性能问题 。
 
+##### 一、KV存储
+RocketMQ的KV存储本质上是一个HashMap，存储数据结构如下：
 ```java
 private final HashMap<String/* Namespace */, HashMap<String/* Key */, String/* Value */>> configTable
      = new HashMap<String, HashMap<String, String>>();
 ```
-
-namespce如`NAMESPACE_ORDER_TOPIC_CONFIG`用来存储Topic的queue顺序定义
-
-提供api：增加，删除，修改 KV
-
+namespace下存储key，value,用不同的namespace表示不同的业务类型。namespce如`NAMESPACE_ORDER_TOPIC_CONFIG`用来存储顺序Topic的Broker排序。另外KV存储也提供了操作KV的api如增加，删除，修改等操作。
 
 ##### 二、Broker注册
-Broker启动会注册到nameserver
+Broker启动后会通过定时任务注册到NameServer，这个注册有两个作用：
+
+1. 通过mqadmin命令行工具创建topic到指定的Broker后，这个Broker会在注册到注册中心的时候将Topic注册到NameServer中，这样Producer和Consumer就可以发现Topic的路由信息了。
+2. Broker可能会宕机，注册的作用就是告诉NameServer Broker还活着。如果Broker宕机了，Producer和Consumer会把该Broker标记为NotActive，并使用定时任务从NameServer获取Topic的路由信息，Broker宕机会发生路由信息的改变。
 
 ![](http://lindzh.oss-cn-hangzhou.aliyuncs.com/blog/nameserver.png)
 
@@ -36,7 +38,7 @@ case RequestCode.REGISTER_BROKER:
     }
 ```
 
-`Nameserver` 收到`Broker`的注册信息后会保存`broker`所属集群，同时Broker会带上topic相关信息，如果这个Broker之前没有注册过，是新的broker，则会更新这个broker上所带的topic信息到nameserver中，另外，如果broker断线，他的心跳信息会被定时任务清除，会更新这个broker的心跳信息。代码如下：
+`Nameserver` 收到`Broker`的注册信息后会保存`broker`所属集群，同时Broker会带上topic相关信息，如果这个Broker之前没有注册过，是新的broker，则会更新这个broker上所带的topic信息到nameserver中。另外，如果broker断线，他的心跳信息会被定时任务清除，会更新这个broker的心跳信息。代码如下：
 
 ```java
 public RegisterBrokerResult registerBroker(
@@ -144,9 +146,7 @@ this.scheduledExecutorService.scheduleAtFixedRate(new Runnable() {
 }, 5, 10, TimeUnit.SECONDS);
 
 ```
-清理代码如下，其中destroy方法会清理broker在集群中的信息，清理该broker上的filter信息，清理该broker的地址在broker name中，如果同一个broker name下面的address已经被完全清理空，则还会清理掉这个broker name下的topic路由信息，因为该topic没有副本可以发送或者消费消息。说明：同一个broker name下有master slave，master id为0
-
-BROKER_CHANNEL_EXPIRED_TIME = 1000 * 60 * 2 2分钟
+清理代码如下：
 
 ```java
 public void scanNotActiveBroker() {
@@ -163,14 +163,24 @@ public void scanNotActiveBroker() {
     }
 }
 ```
-分析：如果一个broker server阻塞，没有发送心跳到nameserver，那么最多需要2分钟+client发现时间才能删除。
+其中destroy方法做的工作如下：
+
+1. 清理broker在集群中的信息
+2. 清理该broker上的filter信息
+3. 由于RockMQ的Broker由Master和Slave组成，BrokerName相同的为同一个Group，BrokerId为O的为MASTER，Broker Id不为0的为SLAVE，清理该broker时检查与该Broker相同的Group下还有没有别的Broker，如果没有其他Broker了，那说明该Group已经不可用，这时会清理掉这个Group下的topic路由信息，因为该topic在这个Group下没有副本可以发送或者消费消息。
+
+说明：RocketMQ本身没有Group的概念，这里借用相同的BrokerName Master，Slave关系来解释和理清他们之间的关系。
+
+Broker过期心跳过期时间：
+BROKER_CHANNEL_EXPIRED_TIME = 1000 * 60 * 2 2分钟
+
+分析：如果一个Broker阻塞或者宕机，没有发送心跳到nameserver，那么最多需要2分钟+client发现时间才能删除。
 
 + Broker心跳更新
 
-会定时给nameserver注册来更新心跳信息
+Broker会定时注册到NameServer来更新心跳信息，本质上的心跳包包含了该Broker上所有的Topic列表。
 
-
-##### 四、Topic对外api
+##### 四 NameServer之开放api
 
 ```java
 public RemotingCommand processRequest(ChannelHandlerContext ctx, RemotingCommand request) throws RemotingCommandException {
@@ -221,7 +231,8 @@ public RemotingCommand processRequest(ChannelHandlerContext ctx, RemotingCommand
         }
         return null;
     }
-
 ```
+通过阅读源码得知：NameServer提供了操作KV的api，Broker注册（Broker注册其实是心跳上传），Broker取消注册，获取集群Broker列表，获取Topic路由信息等。
+
 ##### 五、其他
-nameserver配置文件的更新提供了api，可以通过api更新配置，同时配置文件更新了会持久化到文件系统中，初次启动时会使用该配置文件。
+NameServer配置文件的更新提供了api，可以通过api更新配置，同时配置文件更新了会持久化到文件系统中，初次启动时会使用该配置文件。
