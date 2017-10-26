@@ -9,8 +9,6 @@ tags:
 - 性能监控
 ---
 
-### JDK自带性能监控与调优工具
-
 JDK本身提供了很多方便的JVM性能调优监控工具，除了集成式的VisualVM和jConsole外，还有jps、jstack、jmap、jhat、jstat、hprof等小巧的工具，本博客希望能起抛砖引玉之用，让大家能开始对JVM性能调优的常用工具有所了解。
 
 现实企业级Java开发中，有时候我们会碰到下面这些问题：
