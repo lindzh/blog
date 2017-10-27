@@ -397,7 +397,11 @@ javac -J-agentlib:hprof=heap=dump Hello.java
 
 《Java Performance》
 
-《Trouble Shooting Guide for JavaSE 6 with HotSpot VM》: http://www.oracle.com/technetwork/java/javase/tsg-vm-149989.pdf 
+《JAVA9官网文档》:https://docs.oracle.com/javase/9/
+
+《Troubleshooting Guide for JavaSE 9 with HotSpot VM》https://docs.oracle.com/javase/9/troubleshoot/general-java-troubleshooting.htm#JSTGD107
+
+《Java9 GC 性能调优》https://docs.oracle.com/javase/9/gctuning/introduction-garbage-collection-tuning.htm
 
 《Effective Java》
 
